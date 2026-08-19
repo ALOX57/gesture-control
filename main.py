@@ -11,6 +11,9 @@ F_MIN = 1
 BETA = 4
 D_CUTOFF = 0.5
 
+PINCH_THRESHOLD = 0.045
+RELEASE_THRESHOLD = 0.06
+
 X_MIN = 0.30
 X_MAX = 0.70
 Y_MIN = 0.30
@@ -60,6 +63,8 @@ previous_time = None
 smoothed_velocity_x = 0.0
 smoothed_velocity_y = 0.0
 
+is_pinching = False
+
 while True:
     success, frame = camera.read()
 
@@ -82,6 +87,7 @@ while True:
     for i, hand_landmarks in enumerate(result.hand_landmarks):
         handedness = result.handedness[i][0].category_name
 
+
         points = []
 
         for landmark in hand_landmarks:
@@ -94,6 +100,24 @@ while True:
 
         if handedness == "Right":
             index_tip = hand_landmarks[8]
+            thumb_tip = hand_landmarks[4]
+
+            pinch_distance = math.sqrt(
+                (index_tip.x - thumb_tip.x) ** 2
+                + (index_tip.y - thumb_tip.y) ** 2
+                + (index_tip.z - thumb_tip.z) ** 2
+            )
+
+            print(pinch_distance, is_pinching)
+
+            if not is_pinching and pinch_distance < PINCH_THRESHOLD:
+                pyautogui.mouseDown()
+                is_pinching = True
+
+            elif is_pinching and pinch_distance > RELEASE_THRESHOLD:
+                pyautogui.mouseUp()
+                is_pinching = False
+
 
             raw_x = index_tip.x
             raw_y = index_tip.y
