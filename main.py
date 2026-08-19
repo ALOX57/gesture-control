@@ -5,6 +5,13 @@ import mediapipe as mp
 
 import pyautogui
 
+import math
+
+F_MIN = 1
+BETA = 4
+D_CUTOFF = 0.5
+
+
 HAND_CONNECTIONS = [
     (0, 1), (1, 2), (2, 3), (3, 4),          # Thumb
     (0, 5), (5, 6), (6, 7), (7, 8),          # Index
@@ -34,6 +41,18 @@ pyautogui.PAUSE = 0
 landmarker = mp.tasks.vision.HandLandmarker.create_from_options(options)
 
 start_time = time.monotonic()
+
+
+previous_raw_x = None
+previous_raw_y = None
+
+smoothed_x = None
+smoothed_y = None
+
+previous_time = None
+
+smoothed_velocity_x = 0.0
+smoothed_velocity_y = 0.0
 
 while True:
     success, frame = camera.read()
@@ -70,8 +89,53 @@ while True:
         if handedness == "Right":
             index_tip = hand_landmarks[8]
 
-            cursor_x = int((1 - index_tip.x) * screen_width)
-            cursor_y = int(index_tip.y * screen_height)
+            raw_x = index_tip.x
+            raw_y = index_tip.y
+
+            current_time = time.monotonic()
+
+            if previous_time is None:
+                previous_raw_x = raw_x
+                previous_raw_y = raw_y
+
+                smoothed_x = raw_x
+                smoothed_y = raw_y
+
+                previous_time = current_time
+            else:
+                delta_t = current_time - previous_time
+
+                if delta_t > 1e-6:
+                    velocity_x = (raw_x - previous_raw_x) / delta_t
+                    velocity_y = (raw_y - previous_raw_y) / delta_t
+
+                    alpha_d = 1 - math.exp(-2 * math.pi * D_CUTOFF * delta_t)
+
+                    smoothed_velocity_x = (
+                            alpha_d * velocity_x
+                            + (1 - alpha_d) * smoothed_velocity_x
+                    )
+
+                    smoothed_velocity_y = (
+                            alpha_d * velocity_y
+                            + (1 - alpha_d) * smoothed_velocity_y
+                    )
+
+                    cutoff_x = F_MIN + BETA * abs(smoothed_velocity_x)
+                    cutoff_y = F_MIN + BETA * abs(smoothed_velocity_y)
+
+                    alpha_x = 1 - math.exp(-2 * math.pi * cutoff_x * delta_t)
+                    alpha_y = 1 - math.exp(-2 * math.pi * cutoff_y * delta_t)
+
+                    smoothed_x = alpha_x * raw_x + (1 - alpha_x) * smoothed_x
+                    smoothed_y = alpha_y * raw_y + (1 - alpha_y) * smoothed_y
+
+                previous_raw_x = raw_x
+                previous_raw_y = raw_y
+                previous_time = current_time
+
+            cursor_x = int((1 - smoothed_x) * screen_width)
+            cursor_y = int(smoothed_y * screen_height)
 
             cursor_x = max(0, min(screen_width - 1, cursor_x))
             cursor_y = max(0, min(screen_height - 1, cursor_y))
