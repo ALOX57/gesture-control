@@ -11,6 +11,11 @@ F_MIN = 1
 BETA = 4
 D_CUTOFF = 0.5
 
+X_MIN = 0.30
+X_MAX = 0.70
+Y_MIN = 0.30
+Y_MAX = 0.70
+
 
 HAND_CONNECTIONS = [
     (0, 1), (1, 2), (2, 3), (3, 4),          # Thumb
@@ -37,6 +42,7 @@ options = mp.tasks.vision.HandLandmarkerOptions(
 
 screen_width, screen_height = pyautogui.size()
 pyautogui.PAUSE = 0
+pyautogui.FAILSAFE = False
 
 landmarker = mp.tasks.vision.HandLandmarker.create_from_options(options)
 
@@ -134,8 +140,15 @@ while True:
                 previous_raw_y = raw_y
                 previous_time = current_time
 
-            cursor_x = int((1 - smoothed_x) * screen_width)
-            cursor_y = int(smoothed_y * screen_height)
+            mapped_x = (smoothed_x - X_MIN) / (X_MAX - X_MIN)
+            mapped_x = max(0, min(1, mapped_x))
+
+            cursor_x = int((1 - mapped_x) * screen_width)
+
+            mapped_y = (smoothed_y - Y_MIN) / (Y_MAX - Y_MIN)
+            mapped_y = max(0, min(1, mapped_y))
+
+            cursor_y = int(mapped_y * screen_height)
 
             cursor_x = max(0, min(screen_width - 1, cursor_x))
             cursor_y = max(0, min(screen_height - 1, cursor_y))
