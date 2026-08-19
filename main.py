@@ -3,6 +3,7 @@ import time
 import cv2
 import mediapipe as mp
 
+import pyautogui
 
 HAND_CONNECTIONS = [
     (0, 1), (1, 2), (2, 3), (3, 4),          # Thumb
@@ -27,6 +28,9 @@ options = mp.tasks.vision.HandLandmarkerOptions(
     num_hands=2,
 )
 
+screen_width, screen_height = pyautogui.size()
+pyautogui.PAUSE = 0
+
 landmarker = mp.tasks.vision.HandLandmarker.create_from_options(options)
 
 start_time = time.monotonic()
@@ -36,8 +40,6 @@ while True:
 
     if not success:
         break
-
-    frame = cv2.flip(frame, 1)
 
     rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
@@ -52,7 +54,9 @@ while True:
 
     height, width, _ = frame.shape
 
-    for hand_landmarks in result.hand_landmarks:
+    for i, hand_landmarks in enumerate(result.hand_landmarks):
+        handedness = result.handedness[i][0].category_name
+
         points = []
 
         for landmark in hand_landmarks:
@@ -63,9 +67,21 @@ while True:
 
             cv2.circle(frame, (x, y), 4, (0, 255, 0), -1)
 
+        if handedness == "Right":
+            index_tip = hand_landmarks[8]
+
+            cursor_x = int((1 - index_tip.x) * screen_width)
+            cursor_y = int(index_tip.y * screen_height)
+
+            cursor_x = max(0, min(screen_width - 1, cursor_x))
+            cursor_y = max(0, min(screen_height - 1, cursor_y))
+
+            pyautogui.moveTo(cursor_x, cursor_y)
+
         for start, end in HAND_CONNECTIONS:
             cv2.line(frame, points[start], points[end], (0, 255, 0), 2)
 
+    frame = cv2.flip(frame, 1)
     cv2.imshow("Gesture Control", frame)
 
     # Press Q to quit
